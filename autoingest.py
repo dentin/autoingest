@@ -21,8 +21,8 @@
 # THE SOFTWARE.
 
 import httplib, urllib, sys, argparse, getpass,gzip
-from datetime import datetime
-from datetime import timedelta
+from datetime import date, datetime, timedelta
+from dateutil.rrule import rrule, DAILY
 
 def date_type(string):
     if string.lower() != 'daily' and string.lower() != 'weekly':
@@ -37,6 +37,9 @@ def report_date(val):
         result = val
 
     return result
+    
+def string_to_date(date_string):
+	return date(int(date_string[0:4]),int(date_string[5:6]),int(date_string[7:8]))
 
 
 parser = argparse.ArgumentParser(description='iTunesConnect report download utility')
@@ -46,7 +49,8 @@ parser.add_argument('--id', metavar='VENDOR_ID', required=True, help='A value in
 parser.add_argument('--reporttype', default='Sales', choices=['Sales'], help='This is the report type you want to download.  Currently only Sales Reports are available.')
 parser.add_argument('--datetype', default='Daily', choices=['Daily', 'Weekly'], help='Selecting Weekly will provide you the Weekly version of the report. Selecting Daily will provide you the Daily version of the report.')
 parser.add_argument('--subtype', default='Summary', choices=['Summary', 'Opt-In'], help='This is the parameter for the Sales Reports.')
-parser.add_argument('--date', metavar='YYYYMMDD', default='today', type=report_date, help='This is the date of report you are requesting. If the value for Date parameter is not provided, you will get the latest report available.')
+parser.add_argument('--start', metavar='YYYYMMDD', default='today', type=report_date, help='This is the date of the first report you are requesting. If the value for Date parameter is not provided, you will get the latest report available.')
+parser.add_argument('--end', metavar='YYYYMMDD', default='today', type=report_date, help='This is the date of last report you are requesting. If the value for Date parameter is not provided, you will get the latest report available.')
 parser.add_argument('--output',default='./', help='Specifies the output directory.  The default is current directory.')
 parser.add_argument('--gunzip', help='Gunzips (unpacks) the file if specified.',action="store_true")
 
@@ -58,39 +62,45 @@ if res.password is None:
 if res.password is None or len(res.password) == 0:
     sys.exit(1)
 
-params = urllib.urlencode({
-    'USERNAME': res.username, 
-    'PASSWORD': res.password, 
-    'VNDNUMBER': res.id,
-    'TYPEOFREPORT': res.reporttype,
-    'DATETYPE': res.datetype,
-    'REPORTTYPE': res.subtype,
-    'REPORTDATE': res.date
-})
-headers = {"Content-type": "application/x-www-form-urlencoded"}
-cn = httplib.HTTPSConnection('reportingitc.apple.com')
-cn.request('POST', '/autoingestion.tft?', params, headers)
-response = cn.getresponse()
-errormsg = response.getheader('ERRORMSG')
+datestart = string_to_date(res.start)
+dateend =  string_to_date(res.end)
+    
+for date in rrule(DAILY, dtstart = datestart, until = dateend):
 
-if errormsg is None and response.status == httplib.OK:
-    filename = response.getheader('filename')
-    f = open(res.output + filename, 'w')
-    data = response.read()
-    f.write(data)
-    f.close()
-    print ("downloaded %s" % filename)
+	params = urllib.urlencode({
+		'USERNAME': res.username, 
+		'PASSWORD': res.password, 
+		'VNDNUMBER': res.id,
+		'TYPEOFREPORT': res.reporttype,
+		'DATETYPE': res.datetype,
+		'REPORTTYPE': res.subtype,
+		'REPORTDATE': date.strftime('%Y%m%d')
+	})
+	print date
+	headers = {"Content-type": "application/x-www-form-urlencoded"}
+	cn = httplib.HTTPSConnection('reportingitc.apple.com')
+	cn.request('POST', '/autoingestion.tft?', params, headers)
+	response = cn.getresponse()
+	errormsg = response.getheader('ERRORMSG')
 
-    if res.gunzip:
-    	filename_gunzipped = filename[:-3]
-        f_in = gzip.open(filename,'rb')
-        f_out = open(filename_gunzipped,'wb')
-        content = f_in.read()    
-        f_out.write(content)
-        f_out.close()
-        print ("gunzipped %s" % filename_gunzipped)
+	if errormsg is None and response.status == httplib.OK:
+		filename = response.getheader('filename')
+		f = open(res.output + filename, 'w')
+		data = response.read()
+		f.write(data)
+		f.close()
+		print ("downloaded %s" % filename)
 
-elif errormsg is not None:
-    print errormsg
-else:
-    print response.status, response.reason
+		if res.gunzip:
+			filename_gunzipped = filename[:-3]
+			f_in = gzip.open(filename,'rb')
+			f_out = open(filename_gunzipped,'wb')
+			content = f_in.read()    
+			f_out.write(content)
+			f_out.close()
+			print ("gunzipped %s" % filename_gunzipped)
+
+	elif errormsg is not None:
+		print errormsg
+	else:
+		print response.status, response.reason
