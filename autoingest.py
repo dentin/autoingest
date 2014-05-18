@@ -76,7 +76,6 @@ for date in rrule(DAILY, dtstart = datestart, until = dateend):
 		'REPORTTYPE': res.subtype,
 		'REPORTDATE': date.strftime('%Y%m%d')
 	})
-	print date
 	headers = {"Content-type": "application/x-www-form-urlencoded"}
 	cn = httplib.HTTPSConnection('reportingitc.apple.com')
 	cn.request('POST', '/autoingestion.tft?', params, headers)
@@ -84,7 +83,7 @@ for date in rrule(DAILY, dtstart = datestart, until = dateend):
 	errormsg = response.getheader('ERRORMSG')
 
 	if errormsg is None and response.status == httplib.OK:
-		filename = response.getheader('filename')
+		filename = response.getheader('filename')[:-3]
 		f = open(res.output + filename, 'w')
 		data = response.read()
 		f.write(data)
