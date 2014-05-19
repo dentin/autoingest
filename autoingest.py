@@ -54,6 +54,7 @@ parser.add_argument('--end', metavar='YYYYMMDD', default='today', type=report_da
 parser.add_argument('--output',default='./', help='Specifies the output directory.  The default is current directory.')
 parser.add_argument('--gunzip', help='Gunzips (unpacks) the file if specified.',action="store_true")
 
+
 res = parser.parse_args()
 
 if res.password is None:
@@ -83,21 +84,22 @@ for date in rrule(DAILY, dtstart = datestart, until = dateend):
 	errormsg = response.getheader('ERRORMSG')
 
 	if errormsg is None and response.status == httplib.OK:
-		filename = response.getheader('filename')[:-3]
-		f = open(res.output + filename, 'w')
+		filename = response.getheader('filename')
+		f = open(res.output + '/' + filename, 'w')
 		data = response.read()
 		f.write(data)
 		f.close()
 		print ("downloaded %s" % filename)
 
 		if res.gunzip:
-			filename_gunzipped = filename[:-3]
-			f_in = gzip.open(filename,'rb')
+			filename_gunzipped = res.output + '/' + filename[:-3]
+			f_in = gzip.open(res.output + '/' + filename,'rb')
 			f_out = open(filename_gunzipped,'wb')
 			content = f_in.read()    
 			f_out.write(content)
 			f_out.close()
 			print ("gunzipped %s" % filename_gunzipped)
+
 
 	elif errormsg is not None:
 		print errormsg
